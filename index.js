@@ -52,6 +52,12 @@ async function run() {
       res.send(result)
     })
 
+    // Get The All Testimonial Data From Database
+    app.get('/reviews', async(req, res) => {
+      const result = await reviewsCollection.find().toArray();
+      res.send(result)
+    })
+
 
 
 
