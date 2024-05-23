@@ -1,6 +1,6 @@
 const express = require('express')
 const cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 
 const port = process.env.PORT || 5000
@@ -42,11 +42,48 @@ async function run() {
   try {
 
 
+    const usersCollection = client.db('bistroDB').collection('users')
     const menuCollection = client.db('bistroDB').collection('menu')
     const reviewsCollection = client.db('bistroDB').collection('reviews')
     const cartsCollection = client.db('bistroDB').collection('carts')
 
 
+
+    // Users Collection
+
+    app.get('/users', async(req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result)
+    })
+
+
+
+    // Post User Data on DB
+    app.post('/users', async(req, res) => {
+      const user = req.body;
+
+      const query = { email: user.email}
+      const existingUser = await usersCollection.findOne(query);
+
+      if(existingUser) {
+        return res.send({message: "User Already Exist", insertedId: null})
+      }
+
+      const result = await usersCollection.insertOne(user);
+      res.send(result)
+    })
+
+    // Delete a User by Id
+    app.delete('/users/:id', async(req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id)};
+      const result = await usersCollection.deleteOne(query);
+      res.send(result)
+    })
+
+
+
+    // Menu Collection
     // Get The All Menu Data From Database
     app.get('/menu', async(req, res) => {
       const result = await menuCollection.find().toArray();
@@ -61,10 +98,27 @@ async function run() {
 
 
 
+    // Cart Item Data
+
+    app.get('/carts', async(req, res) => {
+      const email = req.query.email;
+      const query = { email: email}
+      const result = await cartsCollection.find(query).toArray();
+      res.send(result)
+    })
+
     // Post The Cart item on db
     app.post('/carts', async(req, res) => {
       const cartItem = req.body;
       const result = await cartsCollection.insertOne(cartItem);
+      res.send(result)
+    })
+
+    // Delete Cart Item By Id
+    app.delete('/carts/:id', async(req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)};
+      const result = await cartsCollection.deleteOne(query);
       res.send(result)
     })
 
