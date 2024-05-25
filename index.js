@@ -22,6 +22,27 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+
+
+// Verify Token MiddleWare
+const verifyToken = (req, res, next) => {
+  const authorization = req.headers.authorization;
+
+  if (!authorization) {
+    return res.status(401).send({ message: "Unathorized Access" });
+  }
+
+  const token = authorization.split(" ")[1];
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unathorized Access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
 // MongoDb Connection
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.lggjuua.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -37,44 +58,25 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Verify Token MiddleWare
-    const verifyToken = (req, res, next) => {
-      const authorization = req.headers.authorization;
+    
+    const usersCollection = client.db("bistroDB").collection("users");
+    const menuCollection = client.db("bistroDB").collection("menu");
+    const reviewsCollection = client.db("bistroDB").collection("reviews");
+    const cartsCollection = client.db("bistroDB").collection("carts");
 
-      if (!authorization) {
-        return res.status(401).send({ message: "Unathorized Access" });
-      }
 
-      const token = authorization.split(" ")[1];
-
-      console.log(authorization);
-
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          return res.status(401).send({ message: "Unathorized Access" });
-        }
-        req.decoded = decoded;
-        next();
-      });
-    };
 
     // Admin Verify
     const verifyAdmin = async (req, res, next) => {
-      const email = req.params.email;
+      const email = req.decoded.email;
       const query = { email: email };
       const user = await usersCollection.findOne(query);
       const isAdmin = user?.role === "admin";
       if (!isAdmin) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
-
       next();
     };
-
-    const usersCollection = client.db("bistroDB").collection("users");
-    const menuCollection = client.db("bistroDB").collection("menu");
-    const reviewsCollection = client.db("bistroDB").collection("reviews");
-    const cartsCollection = client.db("bistroDB").collection("carts");
 
     // JWT Related
     app.post("/jwt", async (req, res) => {
@@ -95,7 +97,6 @@ async function run() {
 
     app.get("/user/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-
       if (email !== req.decoded.email) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
@@ -146,29 +147,42 @@ async function run() {
     );
 
     // Delete a User by Id
-    app.delete("/users/:id", verifyToken,
-    verifyAdmin, async (req, res) => {
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(query);
       res.send(result);
     });
 
-    // Menu Collection
+    // Menu Collection======================================
     // Get The All Menu Data From Database
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
       res.send(result);
     });
 
-    // Get The All Testimonial Data From Database
+
+    // Post Menu Data on the Database
+    app.post('/menu', verifyToken, verifyAdmin, async(req, res) => {
+      const item = req.body;
+      const result = await menuCollection.insertOne(item)
+      res.send(result)
+    })
+
+    app.delete('/menu/:id', verifyToken, verifyAdmin, async(req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)};
+      const result = await menuCollection.deleteOne(query);
+      res.send(result)
+    })
+
+    // Get The All Testimonial Data From Database =========================
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
     });
 
-    // Cart Item Data
-
+    // Cart Item Data ===========================================
     app.get("/carts", async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
